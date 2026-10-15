@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Конструктор щита — Интеркабель</title>
+<link rel="stylesheet" href="styles.css"></style>
+</head>
+<body>
+<script>
+window.addEventListener('error',function(e){try{
+  var b=document.getElementById('errBanner');
+  if(!b){b=document.createElement('div');b.id='errBanner';
+    b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#c0392b;color:#fff;font:12px/1.5 sans-serif;padding:6px 12px;z-index:99999;white-space:pre-wrap';
+    document.body.appendChild(b);}
+  b.textContent='Ошибка в скрипте: '+e.message+' (строка '+(e.lineno||'?')+')';
+}catch(x){}});
+</script>
+
+<header id="nav">
+  <div class="tab act" data-tab="mont"><span class="ic">🧰</span><span class="lb">Монтаж</span></div>
+  <div class="tab" data-tab="shem"><span class="ic">⚡</span><span class="lb">Схема</span></div>
+  <div class="tab" data-tab="lin"><span class="ic">➤</span><span class="lb">Линейная</span></div>
+  <div class="tab" data-tab="kom"><span class="ic">🔌</span><span class="lb">Коммутация</span></div>
+  <div class="tab" data-tab="mark"><span class="ic">🏷️</span><span class="lb">Маркировка</span></div>
+  <div class="tab" data-tab="smet"><span class="ic">📄</span><span class="lb">Смета</span></div>
+  <div class="tab" data-tab="exp"><span class="ic">⇄</span><span class="lb">Экспорт</span></div>
+  <div class="brand">Интеркабель</div>
+</header>
+<main>
+  <div class="pane act" id="p-mont">
+    <div class="panel noprint">
+      <div class="row">
+        <strong>План монтажа</strong>
+        <select id="rackLen"><option value="12">Рейка 12 модулей</option><option value="18">Рейка 18</option><option value="24">Рейка 24</option><option value="36">Рейка 36</option><option value="48">Рейка 48</option><option value="60">Рейка 60</option><option value="72">Рейка 72</option></select>
+        <select id="rackCount"><option value="1">1 рейка</option><option value="2">2 рейки</option><option value="3">3 рейки</option><option value="4">4 рейки</option></select>
+        <button class="sm dan" id="clearMont">Очистить</button>
+      </div>
+      <div id="korpusWrap"></div>
+      <div id="montStat" style="font-size:12px;color:#4a5568;margin-top:4px"></div>
+      <div id="montWarn" class="warn"></div>
+    </div>
+    <div class="mont">
+      <div class="panel" id="montPanel"><div class="rackwrap" id="rackwrap"></div>
+        <div style="font-size:11px;color:#8a94a2;text-align:center;margin-top:6px">1 модуль ≈ 18 мм · пунктир — свободные места · серая полоса — DIN-рейка за модулями</div>
+        <div id="devHint" style="font-size:11px;color:#8a94a2;text-align:center;margin-top:2px">Тап по модулю — выбор/удаление. Перетаскивание — перестановка.</div>
+      </div>
+      <div class="catwrap panel noprint">
+        <h2>Каталог (прайс Интеркабель)</h2>
+        <div class="filters">
+          <select id="fBrand"><option value="">Все бренды</option></select>
+          <select id="fType"><option value="">Все типы</option><option value="avt">Автоматы</option><option value="uzo">УЗО</option><option value="avdt">Дифавтоматы</option><option value="mtr">Счётчики</option><option value="rub">Рубильники</option><option value="km">Контакторы</option><option value="rel">Реле напряжения</option><option value="usip">УЗИП</option><option value="kor">Корпуса щитов</option><option value="shina">Шины</option><option value="klem">Клеммы</option></select>
+          <input type="text" id="fSearch" placeholder="Поиск: артикул, название">
+        </div>
+        <div class="catgrid" id="catGrid"></div>
+        <button class="more" id="moreBtn">Показать ещё</button>
+      </div>
+    </div>
+  </div>
+  <div class="pane" id="p-shem"><div class="panel"><h2>Наглядная схема</h2><canvas id="cvShem"></canvas></div></div>
+  <div class="pane" id="p-lin"><div class="panel"><h2>Линейная (однолинейная) схема</h2><canvas id="cvLin"></canvas></div></div>
+  <div class="pane" id="p-kom">
+    <div class="panel noprint">
+      <div class="row">
+        <button class="pri" id="wireModeBtn">🔗 Проложить провод</button>
+        <button class="sm dan" id="clearWires">Убрать все провода</button>
+        <span id="wireCnt" style="font-size:12px;color:#4a5568"></span>
+      </div>
+      <div style="font-size:11px;color:#8a94a2;margin-top:6px">Режим прокладки: тап по синему выводу (сверху/снизу), затем тап по второму. Вне режима устройства двигаются пальцем. Тап по проводу — цвет, углы, длина, удаление.</div>
+    </div>
+    <div class="komcanvas" id="komCanvas">
+      <svg class="wires" id="wireSvg"></svg>
+      <div id="kdevs"></div>
+    </div>
+    <div class="wpanel" id="wPanel">
+      <div style="font-weight:700;margin-bottom:6px">Провод</div>
+      <div class="row" id="colorRow"></div>
+      <div class="row" style="margin-top:8px">
+        <label>Углы:</label>
+        <button class="sm" data-crn="90">90°</button>
+        <button class="sm" data-crn="round">Скругление</button>
+        <button class="sm" data-crn="diag">Диагональ</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="sm" id="wLenUp">↑ Длиннее</button>
+        <button class="sm" id="wLenDn">↓ Короче</button>
+        <button class="sm dan" id="wDel">Удалить этот провод</button>
+        <button class="sm" id="wClose">Закрыть</button>
+      </div>
+    </div>
+  </div>
+  <div class="pane" id="p-mark">
+    <div class="panel noprint">
+      <h2>Маркировка щита</h2>
+      <div class="qgrid" id="quickLbls"></div>
+      <div class="row"><input type="text" id="newLbl" placeholder="Свой ярлык (например: Гараж)"><button class="pri" id="addLbl">Добавить</button></div>
+      <div id="lblList" style="margin-top:10px"></div>
+    </div>
+    <div class="panel noprint">
+      <h2>Печать</h2>
+      <div class="row" id="tmplBtns"></div>
+    </div>
+    <div class="pane printact" id="printArea" style="display:none"></div>
+  </div>
+  <div class="pane" id="p-smet"><div class="panel"><h2>Спецификация и смета</h2><div id="specWrap"></div></div></div>
+  <div class="pane" id="p-exp"><div class="panel"><h2>Экспорт / Импорт</h2>
+    <div class="row"><button class="pri" id="expBtn">Скачать проект (JSON)</button><button id="impBtn">Загрузить проект</button><input type="file" id="impFile" accept=".json" style="display:none"></div>
+    <p style="font-size:12px;color:#4a5568;margin-top:8px">Проект хранится в браузере автоматически. Для переноса на другое устройство — экспорт и импорт файла.</p>
+  </div></div>
+</main>
+
+<script src="catalog.js"></script>
+<script src="app.js"></script>
+
+<script>
+/* ---------- Схемы ---------- */
+function devList(){return S.mods.slice()}
+function drawShem(){
+  var cv=$('cvShem');var dl=devList();var w=Math.min(900,Math.max(360,cv.parentNode.clientWidth-28));
+  var rowH=64,n=dl.length;cv.width=w;cv.height=Math.max(320,n*rowH+90);
+  var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle='#94a3b3';ctx.lineWidth=2;
+  var busY=40;ctx.beginPath();ctx.moveTo(20,busY);ctx.lineTo(w-20,busY);ctx.stroke();
+  ctx.fillStyle='#1d2530';ctx.font='bold 12px sans-serif';ctx.fillText('Шина фаз (L1, L2, L3)',24,26);
+  var phases=['#7f4f24','#1a1a1a','#8a8a8a'];
+  dl.forEach(function(m,i){
+    var y=70+i*rowH,x=40;
+    ctx.strokeStyle='#64748b';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(20,busY);ctx.lineTo(x+40,y+22);ctx.stroke();
+    if(m.amp){ctx.fillStyle='#1d2530';ctx.font='bold 11px sans-serif';ctx.fillText(m.amp+'A',x+46,y+16)}
+    drawShemDev(ctx,x+40,y,m.type,m.poles,m.amp);
+    ctx.fillStyle='#334155';ctx.font='10px sans-serif';ctx.fillText(shortName(m.name),x+120,y+26);
+    ctx.fillStyle='#2b6cb0';ctx.font='bold 12px sans-serif';ctx.fillText((m.price||0).toFixed(0)+' ₽',w-90,y+26);
+  });
+}
+function drawShemDev(ctx,x,y,type,poles,amp){
+  var w=18,h=56;
+  for(var p=0;p<(poles||1);p++){
+    var xx=x+p*24;
+    ctx.strokeStyle='#1d2530';ctx.lineWidth=1.6;
+    ctx.strokeRect(xx,y,w,h);
+    ctx.beginPath();ctx.moveTo(xx+4,y);ctx.lineTo(xx+4,y+14);ctx.moveTo(xx+4,y+30);ctx.lineTo(xx+4,y+44);ctx.stroke();
+    if(type=='uzo'){ctx.strokeStyle='#2980b9';ctx.strokeRect(xx-4,y+8,w+8,h-16);ctx.fillStyle='#2980b9';ctx.font='bold 9px sans-serif';ctx.fillText('T',xx+w/2-3,y+34)}
+    if(type=='avdt'){ctx.strokeStyle='#c0392b';ctx.strokeRect(xx-4,y+8,w+8,h-16)}
+    if(type=='mtr'){ctx.strokeStyle='#64748b';ctx.strokeRect(xx-6,y-6,w+12,h+12);ctx.fillStyle='#16a085';ctx.font='bold 10px monospace';ctx.fillText('кВт·ч',xx-2,y+30)}
+  }
+}
+function drawLin(){
+  var cv=$('cvLin');var dl=devList();var w=Math.min(900,Math.max(340,cv.parentNode.clientWidth-28));
+  cv.width=w;cv.height=90+dl.length*52+40;
+  var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+  var x=60;ctx.strokeStyle='#1d2530';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x,30);ctx.lineTo(x,cv.height-30);ctx.stroke();
+  ctx.font='bold 12px sans-serif';ctx.fillStyle='#1d2530';ctx.fillText('Ввод',x-30,22);
+  dl.forEach(function(m,i){
+    var y=60+i*52;
+    ctx.strokeStyle='#334155';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+30,y);ctx.stroke();
+    ctx.strokeStyle='#1d2530';ctx.lineWidth=1.5;ctx.strokeRect(x+30,y-14,40,28);
+    ctx.beginPath();ctx.moveTo(x+34,y+14);ctx.lineTo(x+66,y-14);ctx.stroke();
+    ctx.fillStyle='#334155';ctx.font='10px sans-serif';ctx.fillText(shortName(m.name)+' · '+(m.price||0).toFixed(0)+' ₽',x+80,y+4);
+  });
+}
+/* ---------- Коммутация ---------- */
+var wireMode=false,firstPort=null,selWire=null;
+var COLORS=[['коричневый L1','#7f4f24'],['чёрный L2','#1a1a1a'],['серый L3','#8a8a8a'],['голубой N','#2456c4'],['жёлто-зелёный PE','#7db417'],['красный','#c0392b'],['оранжевый','#e67e22'],['жёлтый','#f1c40f'],['зелёный','#27ae60'],['фиолетовый','#8e44ad'],['белый','#ecf0f1']];
+function polesOf(m){
+  if(m.type=='mtr')return /3ф|380/i.test(m.name)?3:2;
+  if(m.poles&&m.poles>1)return Math.min(m.poles,4);
+  var mm=(m.name||'').match(/\d\s*(?:Р|P)(?!р|re)/i);
+  if(mm)return Math.min(parseInt(mm[0]),4);
+  if(m.type=='avdt'||m.type=='uzo')return 2;
+  if(m.type=='rel')return 2;
+  if(m.type=='klem'||m.type=='shina')return 1;
+  return 3;
+}
+function termLabels(m,P,side){
+  if(m.type=='mtr'){var t=side=='t'?['1','3','5']:['2','4','6'];return t.slice(0,P)}
+  if(m.type=='km')return side=='t'?['L1','L2','L3','N'].slice(0,P):['T1','T2','T3','N'].slice(0,P);
+  var top=['L','L1','L2','L3'].slice(0,P);
+  var bot=P==2?['L','N']:['L','L1','L2','L3'].slice(0,P);
+  return side=='t'?top:bot;
+}
+function buildKom(){
+  var host=$('kdevs');host.innerHTML='';
+  var dl=devList();
+  dl.forEach(function(m,i){
+    if(!S.kpos[m.code+'_'+i])S.kpos[m.code+'_'+i]={x:20+(i%4)*170,y:30+Math.floor(i/4)*230};
+    var p=S.kpos[m.code+'_'+i];
+    var d=document.createElement('div');d.className='kdev';d.style.left=p.x+'px';d.style.top=p.y+'px';
+    d.innerHTML='<div class="st" style="background:'+(BRANDCOL[m.brand]||'#5a6472')+'">'+(m.brand||'')+'</div><div class="amp">'+(m.amp||'')+'</div><div style="font-size:9px;color:#5a6472;line-height:1.2;max-height:2.6em;overflow:hidden">'+shortName(m.name)+'</div>';
+    var P=polesOf(m);
+    [1,0].forEach(function(isTop){
+      var side=isTop?'t':'b';
+      termLabels(m,P,side).forEach(function(lab,j){
+        var pt=document.createElement('div');pt.className='port '+(isTop?'top':'bot');
+        pt.dataset.k=i+side+j;
+        pt.style.left=((j+0.5)/P*100)+'%';
+        pt.textContent=lab;
+        d.appendChild(pt);
+        pt.onclick=function(e){e.stopPropagation();portTap(i,side,j)};
+      });
+    });
+    dragK(d,p,i);
+    host.appendChild(d);
+  });
+  drawWires();
+  $('wireCnt').textContent='Соединений: '+S.wires.length;
+}
+function portTap(i,side,pole){
+  if(!wireMode){toast('Включите «Проложить провод»');return}
+  var key=i+side+pole;
+  if(firstPort==null){firstPort=key;toast('Теперь коснитесь второго вывода')}
+  else if(firstPort!=key){S.wires.push({a:firstPort,b:key,color:'#7f4f24',crn:'90',len:50});firstPort=null;drawWires();save();toast('Провод проложен')}
+  else firstPort=null;
+}
+function portPos(k){
+  var i=parseInt(k),rest=k.replace(/^\d+/,'');
+  var side=rest.charAt(0);
+  var pole=rest.length>1?parseInt(rest.charAt(1)):0;
+  var m=devList()[i];if(!m)return {x:0,y:0};
+  var key=m.code+'_'+i;var pos=S.kpos[key];if(!pos)pos={x:0,y:0};
+  var P=polesOf(m);
+  var x=pos.x+(pole+0.5)/P*150;
+  return side=='t'?{x:x,y:pos.y}:{x:x,y:pos.y+90};
+}
+function wirePath(w){
+  var A=portPos(w.a),B=portPos(w.b);
+  if(w.crn=='diag')return 'M'+A.x+' '+A.y+' L'+B.x+' '+B.y;
+  if(w.crn=='round'){var mid=(A.y+B.y)/2;var r=12;
+    return 'M'+A.x+' '+A.y+' L'+A.x+' '+(mid-r)+' Q'+A.x+' '+mid+' '+(A.x+r)+' '+mid+' L'+(B.x-r)+' '+mid+' Q'+B.x+' '+mid+' '+B.x+' '+(mid+r)+' L'+B.x+' '+B.y}
+  var mid=(A.y+B.y)/2;
+  return 'M'+A.x+' '+A.y+' L'+A.x+' '+mid+' L'+B.x+' '+mid+' L'+B.x+' '+B.y;
+}
+function drawWires(){
+  var svg=$('wireSvg');svg.innerHTML='';
+  S.wires.forEach(function(w,i){
+    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',wirePath(w));p.setAttribute('stroke',w.color);
+    if(selWire==i)p.classList.add('hl');
+    p.onclick=function(e){e.stopPropagation();selWire=i;openWPanel()};
+    svg.appendChild(p);
+    if(selWire==i){var A=portPos(w.a),B=portPos(w.b);var mid={x:(A.x+B.x)/2,y:(A.y+B.y)/2};
+      var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      c.setAttribute('cx',mid.x);c.setAttribute('cy',mid.y);c.setAttribute('r',8);c.setAttribute('fill','#fff');c.setAttribute('stroke','#f5a623');c.setAttribute('stroke-width','2');
+      c.style.pointerEvents='auto';c.style.cursor='move';
+      c.addEventListener('pointerdown',function(ev){ev.stopPropagation();dragWire(ev,w)});
+      svg.appendChild(c);}
+  });
+}
+function dragWire(ev,w){
+  var startY=ev.clientY,dlen=w.len||50;
+  function mv(e){w.len=Math.max(20,dlen+(e.clientY-startY));drawWires()}
+  function up(){document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);save()}
+  document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);
+}
+function openWPanel(){
+  var p=$('wPanel');p.style.display='block';
+  var row=$('colorRow');row.innerHTML='';
+  COLORS.forEach(function(c){
+    var s=document.createElement('div');s.className='sw';s.style.background=c[1];s.title=c[0];
+    s.onclick=function(){if(selWire!=null){S.wires[selWire].color=c[1];drawWires();save()}};
+    row.appendChild(s);
+  });
+  var inp=document.createElement('input');inp.type='color';inp.style.cssText='width:34px;height:30px;border:1px solid #ccc;border-radius:6px;margin:3px';
+  inp.oninput=function(){if(selWire!=null){S.wires[selWire].color=this.value;drawWires();save()}};
+  row.appendChild(inp);
+  document.querySelectorAll('[data-crn]').forEach(function(b){
+    b.style.fontWeight=(S.wires[selWire]&&S.wires[selWire].crn==b.dataset.crn)?'bold':'normal';
+    b.onclick=function(){if(selWire!=null){S.wires[selWire].crn=b.dataset.crn;drawWires();save()}};
+  });
+}
+$('wLenUp').onclick=function(){if(selWire!=null){S.wires[selWire].len=(S.wires[selWire].len||50)+20;drawWires();save()}};
+$('wLenDn').onclick=function(){if(selWire!=null){S.wires[selWire].len=Math.max(20,(S.wires[selWire].len||50)-20);drawWires();save()}};
+$('wDel').onclick=function(){if(selWire!=null){S.wires.splice(selWire,1);selWire=null;closeWPanel();drawWires();save()}};
+$('wClose').onclick=closeWPanel;
+function closeWPanel(){$('wPanel').style.display='none';selWire=null;drawWires()}
+$('wireModeBtn').onclick=function(){wireMode=!wireMode;this.textContent=wireMode?'✕ Выйти из прокладки':'🔗 Проложить провод';this.classList.toggle('pri',!wireMode);if(!wireMode)firstPort=null};
+$('clearWires').onclick=function(){if(confirm('Убрать все провода?')){S.wires=[];drawWires();save()}};
+function dragK(d,p,i){
+  d.addEventListener('pointerdown',function(e){if(e.target.classList.contains('port'))return;
+    var sx=e.clientX,sy=e.clientY,ox=p.x,oy=p.y,mv=false;
+    function mm(e2){if(Math.abs(e2.clientX-sx)+Math.abs(e2.clientY-sy)>6)mv=true;
+      if(mv){p.x=Math.max(0,ox+e2.clientX-sx);p.y=Math.max(0,oy+e2.clientY-sy);d.style.left=p.x+'px';d.style.top=p.y+'px';drawWires()}}
+    function mu(){document.removeEventListener('pointermove',mm);document.removeEventListener('pointerup',mu);if(mv){save()}}
+    document.addEventListener('pointermove',mm);document.addEventListener('pointerup',mu)});
+}
+</script>
+
+<script>
+/* ---------- Маркировка ---------- */
+var QUICK=[['Свет','💡'],['Розетки','🔌'],['Плита','🔥'],['Бойлер','♨️'],['Стиралка','🫧'],['Посудомойка','🍽️'],['Кондиционер','❄️'],['Улица','🌳'],['Тёплый пол','🔥'],['Кухня','🍳'],['Котёл','♨️'],['Насос','💧']];
+function buildMark(){
+  var q=$('quickLbls');q.innerHTML='';
+  QUICK.forEach(function(x){
+    var d=document.createElement('div');d.className='qicon';
+    d.innerHTML='<div class="em">'+x[1]+'</div><div class="tx">'+x[0]+'</div>';
+    d.onclick=function(){S.labels.push({t:x[0],n:1});drawLbls();save()};
+    q.appendChild(d);
+  });
+  drawLbls();buildTmpl();
+}
+function drawLbls(){
+  var l=$('lblList');l.innerHTML='';
+  if(!S.labels.length){l.innerHTML='<div style="font-size:12px;color:#8a94a2">Ярлыков пока нет — выберите готовый выше или добавьте свой.</div>';return}
+  S.labels.forEach(function(x,i){
+    var d=document.createElement('div');d.className='lblcard';
+    d.innerHTML='<div class="txt">'+x.t+' <span style="color:#8a94a2">× '+x.n+'</span></div>';
+    var bm=document.createElement('button');bm.className='sm';bm.textContent='+1';
+    bm.onclick=function(){x.n++;drawLbls();save()};
+    var bp=document.createElement('button');bp.className='sm';bp.textContent='−1';
+    bp.onclick=function(){x.n=Math.max(1,x.n-1);drawLbls();save()};
+    var bd=document.createElement('button');bd.className='sm dan';bd.textContent='✕';
+    bd.onclick=function(){S.labels.splice(i,1);drawLbls();save()};
+    d.appendChild(bm);d.appendChild(bp);d.appendChild(bd);l.appendChild(d);
+  });
+}
+$('addLbl').onclick=function(){var v=$('newLbl').value.trim();if(v){S.labels.push({t:v,n:1});$('newLbl').value='';drawLbls();save()}};
+var TMPL=[
+ {id:'a65',n:'Лист A4 — 65 этикеток (38,1×21,2 мм, формат L7651)',w:38.1,h:21.2,cols:7,rows:10,font:7},
+ {id:'a24',n:'Лист A4 — 24 этикетки (65×37,5 мм)',w:65,h:37.5,cols:3,rows:8,font:11},
+ {id:'lj60',n:'Luck Jingle / Ablemare — лента 60 мм',w:56,h:14,cols:1,rows:1,font:16,one:'tape60'},
+ {id:'lj50',n:'Luck Jingle / Ablemare — лента 50 мм',w:46,h:12,cols:1,rows:1,font:14,one:'tape'},
+ {id:'lj40',n:'Luck Jingle / Ablemare — лента 40 мм',w:36,h:10,cols:1,rows:1,font:12,one:'tape'},
+ {id:'lj30',n:'Luck Jingle / Ablemare — лента 30 мм',w:26,h:9,cols:1,rows:1,font:10,one:'tape'},
+ {id:'bro12',n:'Brother P-touch TZe 12 мм (TZe-131)',w:80,h:8,cols:1,rows:1,font:9,one:'tape'},
+ {id:'bro24',n:'Brother P-touch TZe 24 мм (TZe-241)',w:80,h:16,cols:1,rows:1,font:14,one:'tape'},
+ {id:'dymo',n:'DYMO — лента 12 мм',w:60,h:9,cols:1,rows:1,font:10,one:'tape'}
+];
+function buildTmpl(){
+  var b=$('tmplBtns');b.innerHTML='';
+  TMPL.forEach(function(t){
+    var btn=document.createElement('button');btn.textContent=t.n;btn.className='sm';
+    btn.onclick=function(){printTmpl(t)};
+    b.appendChild(btn);
+  });
+}
+function printTmpl(t){
+  var all=[];S.labels.forEach(function(x){for(var i=0;i<x.n;i++)all.push(x.t)});
+  if(!all.length)all=['Свет'];
+  var pa=$('printArea');pa.style.display='block';pa.innerHTML='';
+  if(t.one){var c=document.createElement('div');c.style.cssText='display:inline-block;padding:6px;border:1px dashed #999;margin:4px;font-size:'+t.font+'px;font-weight:700;white-space:nowrap';c.textContent=all[0];pa.appendChild(c);
+  } else {
+    var perRow=t.cols,rows=Math.ceil(all.length/perRow);
+    for(var r=0;r<Math.max(rows,t.rows);r++){
+      var rw=document.createElement('div');rw.style.cssText='display:flex;gap:2px;margin-bottom:2px';
+      for(var c2=0;c2<perRow;c2++){
+        var cell=document.createElement('div');
+        cell.style.cssText='width:'+t.w+'mm;height:'+t.h+'mm;border:1px dotted #aaa;font-size:'+t.font+'pt;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px;overflow:hidden';
+        var idx=r*perRow+c2;cell.textContent=all[idx]||'';rw.appendChild(cell);
+      }
+      pa.appendChild(rw);
+    }
+  }
+  window.print();
+  setTimeout(function(){pa.style.display='none';pa.innerHTML=''},300);
+}
+/* ---------- Смета ---------- */
+function drawSmet(){
+  var w=$('specWrap');w.innerHTML='';
+  var dl=devList();
+  if(S.korpus)dl=dl.concat([{name:S.korpus.name,price:S.korpus.price,brand:'',type:'kor',unit:'шт',code:S.korpus.code}]);
+  var uniq={};dl.forEach(function(m){var k=m.code+'|'+m.name+'|'+m.price;uniq[k]=(uniq[k]||0)+1});
+  var keys=Object.keys(uniq),total=0;
+  var t=document.createElement('table');
+  t.innerHTML='<tr><th>Наименование</th><th>Код</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr>';
+  keys.forEach(function(k){
+    var p=k.split('|'),q=uniq[k],sum=p[2]*q;total+=sum;
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+p[1]+'</td><td>'+p[0]+'</td><td>'+q+'</td><td>'+(+p[2]).toFixed(2)+'</td><td>'+sum.toFixed(2)+'</td>';
+    t.appendChild(tr);
+  });
+  w.appendChild(t);
+  var s=document.createElement('div');s.className='sum';s.textContent='Итого: '+total.toFixed(2)+' ₽';w.appendChild(s);
+  var pr=document.createElement('button');pr.className='pri';pr.style.marginTop='10px';pr.textContent='Печать сметы';
+  pr.onclick=function(){window.print()};
+  w.appendChild(pr);
+}
+/* ---------- Экспорт ---------- */
+$('expBtn').onclick=function(){
+  var blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='shield_project.json';a.click();
+};
+$('impBtn').onclick=function(){$('impFile').click()};
+$('impFile').onchange=function(){
+  var f=this.files[0];if(!f)return;var rd=new FileReader();
+  rd.onload=function(){try{var d=JSON.parse(rd.result);S=Object.assign(S,d);drawMont();buildKom();buildMark();save();toast('Проект загружен')}catch(e){toast('Ошибка файла')}};
+  rd.readAsText(f);
+};
+/* ---------- Запуск ---------- */
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('act',t.dataset.tab==id)});
+  document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('act',p.id=='p-'+id)});
+  if(id=='mont')drawMont();
+  if(id=='shem')drawShem();
+  if(id=='lin')drawLin();
+  if(id=='kom')buildKom();
+  if(id=='mark')buildMark();
+  if(id=='smet')drawSmet();
+}
+document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){switchTab(t.dataset.tab)}});
+load();
+fillBrands();
+$('rackLen').value=String(S.rackLen||18);$('rackCount').value=String(S.rackCount||1);
+drawMont();applyFilters();buildKom();buildMark();
+</script>
+<script>
+/* ==== НАДСТРОЙКА: исправления поверх базовой версии. Рабочий код не тронут ==== */
+/* --- 1. Перетаскивание: модуль встаёт в брошенное место --- */
+function freeRun(occ,a,w){for(var i=0;i<w;i++)if(occ[a+i])return false;return true}
+window.fitAt=function(m,lane,slots){
+  if(slots<0)slots=0;
+  var t=Math.min(slots,Math.max(0,S.rackLen-m.w));
+  var occ={};S.mods.filter(function(x){return x.lane==lane&&x!==m}).forEach(function(x){for(var i=0;i<x.w;i++)occ[i]=1});
+  if(freeRun(occ,t,m.w))return{lane:lane,start:t};
+  for(var d=1;d<=S.rackLen;d++){
+    var a=t-d;if(a>=0&&freeRun(occ,a,m.w))return{lane:lane,start:a};
+    var b=t+d;if(b<=S.rackLen-m.w&&freeRun(occ,b,m.w))return{lane:lane,start:b};
+  }
+  for(var l=0;l<(S.rackCount||1);l++){
+    if(l==lane)continue;
+    var o={};S.mods.filter(function(x){return x.lane==l&&x!==m}).forEach(function(x){for(var i=0;i<x.w;i++)o[i]=1});
+    for(var s=0;s<=S.rackLen-m.w;s++)if(freeRun(o,s,m.w))return{lane:l,start:s};
+  }
+  return null;
+};
+function laneFromPoint(e){
+  var rs=document.querySelectorAll('.rack');
+  for(var i=0;i<rs.length;i++){var r=rs[i].getBoundingClientRect();if(e.clientY>=r.top&&e.clientY<=r.bottom)return i}
+  return null;
+}
+function rebuildLaneOrder(m2,lane,start){
+  var others=S.mods.filter(function(x){return x.lane==lane&&x!==m2});
+  var cum=0,idx=0;
+  for(var i=0;i<others.length;i++){if(cum<=start){idx=i+1;cum+=others[i].w}else break}
+  others.splice(Math.min(idx,others.length),0,m2);
+  var out=[];
+  for(var l=0;l<Math.max(1,S.rackCount||1);l++){
+    if(l==lane){others.forEach(function(x){out.push(x)})}
+    else S.mods.filter(function(x){return x.lane==l&&x!==m2}).forEach(function(x){out.push(x)});
+  }
+  S.mods.forEach(function(x){if(x.lane>=(S.rackCount||1)&&out.indexOf(x)<0)out.push(x)});
+  out.forEach(function(x,i){x._ord=i});
+  S.mods=out;
+}
+var DRAG=null;
+window.dragDev=function(d,m){
+  d.addEventListener('pointerdown',function(e){
+    if(e.target.classList.contains('ptr'))return;
+    DRAG={el:d,m:m,sx:e.clientX,sy:e.clientY,moved:false};
+    try{d.setPointerCapture(e.pointerId)}catch(x){}
+  });
+  d.addEventListener('pointermove',function(e){
+    if(!DRAG||DRAG.el!==d)return;
+    var dx=e.clientX-DRAG.sx,dy=e.clientY-DRAG.sy;
+    if(Math.abs(dx)+Math.abs(dy)>8)DRAG.moved=true;
+    if(DRAG.moved)d.style.left=(parseFloat(d.style.left)+(e.movementX||0))+'px';
+  });
+  d.addEventListener('pointerup',function(e){
+    var wasMoved=DRAG&&DRAG.moved;DRAG=null;
+    if(!wasMoved)return;
+    var slots=Math.round(parseFloat(d.style.left)/MW);
+    if(slots<0)slots=0;
+    var lane=laneFromPoint(e);if(lane==null)lane=m.lane;
+    lane=Math.max(0,Math.min((S.rackCount||1)-1,lane));
+    var fit=fitAt(m,lane,slots);
+    if(fit)rebuildLaneOrder(m,fit.lane,fit.start);
+    else toast('Нет места в этом ряду');
+    m._x=undefined;drawMont();
+  });
+};
+/* --- 2. Корпус сразу рядами + шины N и PE в комплекте --- */
+function rowsFor(n){
+  if(n<=24)return[1,n];
+  if(n<=36)return[2,18];
+  if(n<=48)return[2,24];
+  if(n<=60)return[2,30];
+  if(n<=72)return[3,24];
+  return[Math.ceil(n/30),30];
+}
+function korModules(c){
+  var n=null,mm=(c.name||'').match(/(\d{1,2})\s*(?:модул|мест)/i);
+  if(mm)n=parseInt(mm[1]);
+  if(!n){var pre=(c.name||'').match(/Щ[А-Я]+-(\d{1,3})[\.\s]/);if(pre&&+pre[1]>=4&&+pre[1]<=80)n=+pre[1]}
+  if(!n){
+    var nums=(c.name||'').match(/\d+/g)||[];
+    var dims=nums.filter(function(v){return +v>=20&&+v<=99}).slice(0,2);
+    if(dims.length)n=Math.round(Math.max.apply(null,dims)*10/18);
+  }
+  if(!n)n=18;
+  return Math.max(6,Math.min(72,n));
+}
+window.addFromCat=function(c){
+  if(c.type=='kor'){
+    var n=korModules(c),rows=rowsFor(n),est=!/(\d{1,2})\s*(?:модул|мест)/i.test(c.name);
+    S.korpus={code:c.code,name:c.name,price:c.price,mods:n};
+    S.rackLen=rows[1];S.rackCount=rows[0];S.mods=[];
+    try{
+      var sl=$('rackLen');for(var i=0;i<sl.options.length;i++)if(+sl.options[i].value==rows[1]){sl.selectedIndex=i;break}
+      var sc=$('rackCount');for(var j=0;j<sc.options.length;j++)if(+sc.options[j].value==rows[0]){sc.selectedIndex=j;break}
+    }catch(e){}
+    if(!S.mods.some(function(x){return x.type=='shina'&&/N\b|нейтр/i.test(x.name)}))
+      S.mods.push({code:'kit-N',name:'Шина N (в комплекте корпуса)',price:0,unit:'шт',brand:'',type:'shina',poles:1,amp:0,w:0,lane:0});
+    if(!S.mods.some(function(x){return x.type=='shina'&&/PE|зазем/i.test(x.name)}))
+      S.mods.push({code:'kit-PE',name:'Шина PE (в комплекте корпуса)',price:0,unit:'шт',brand:'',type:'shina',poles:1,amp:0,w:0,lane:0});
+    toast('Корпус: '+rows[0]+' ряд'+(rows[0]>1?'а':'')+' по '+rows[1]+(est?' (оценка по размерам)':''));
+    drawMont();save();return;
+  }
+  if(c.rack===false){toast('Этот прибор не модульный — крепится на болты, на план не ставится');return}
+  var aw=(c.type=='shina'?0:Math.max(c.width||1,1));
+  if(modCount()+aw>rackCapacity()){toast('Не хватает места на рейке');return}
+  S.mods.push({code:c.code,name:c.name,price:c.price,unit:c.unit,brand:c.brand,type:c.type,poles:c.poles||1,amp:c.amp||0,w:aw,lane:curLane(),lbl:''});
+  drawMont();save();toast('Добавлено: '+shortName(c.name));
+};
+/* --- 3. Ширина счётчиков --- */
+function mtrWidth(n){
+  if(/230/.test(n)){if(/ART-02/.test(n))return 10;if(/[АA][МM]-0|[АA][RР]-0/.test(n))return 5;return 8}
+  if(/231/.test(n))return 8;
+  if(/201\.[56]/.test(n))return 6;
+  if(/201/.test(n))return 5;
+  if(/СЕ303/.test(n))return 8;
+  if(/СЕ10[12]/.test(n))return 5;
+  if(/ЦЭ6803/.test(n))return (/болты/.test(n)&&!/рейка/.test(n))?0:5;
+  if(/НЕВА/.test(n))return 0;
+  if(/ТОПАЗ/.test(n))return (/болты/.test(n)&&!/рейка/.test(n))?0:5;
+  if(/NP73E/.test(n))return 8;
+  if(/СКАТ/.test(n))return 4;
+  return 5;
+}
+CAT.forEach(function(c){if(c.type=='mtr'){var w=mtrWidth(c.name||'');c.width=w;if(w===0)c.rack=false}});
+/* --- 4. Линейная схема без веера --- */
+window.drawLin=function(){
+  var cv=$('cvLin');
+  var dl=devList().filter(function(x){return x.type!='shina'});
+  var w=Math.min(940,Math.max(360,cv.parentNode.clientWidth-28));
+  cv.width=w;cv.height=Math.max(240,60+dl.length*56+30);
+  var ctx=cv.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+  var PC=['#7f4f24','#1a1a1a','#8a8a8a','#2456c4'];
+  var tx=44;
+  ctx.strokeStyle='#1d2530';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(tx,30);ctx.lineTo(tx,cv.height-20);ctx.stroke();
+  ctx.font='bold 12px sans-serif';ctx.fillStyle='#1d2530';ctx.fillText('Ввод',tx-34,24);
+  dl.forEach(function(m,i){
+    var P=Math.max(1,Math.min(4,polesOf(m)||1));
+    var y=66+i*56,ph=7,bh=P*ph+(P-1)*2;
+    for(var p=0;p<P;p++){
+      var yy=y-bh/2+3+p*(ph+2);
+      ctx.strokeStyle=PC[p%4];ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.moveTo(tx,yy);ctx.lineTo(96,yy);ctx.stroke();
+      ctx.fillStyle=PC[p%4];ctx.beginPath();ctx.arc(tx,yy,2.2,0,6.28);ctx.fill();
+    }
+    ctx.strokeStyle='#1d2530';ctx.lineWidth=1.5;
+    var x0=102;
+    if(m.type=='mtr'){
+      ctx.strokeRect(x0,y-16,44,32);
+      ctx.beginPath();ctx.moveTo(x0+4,y+12);ctx.lineTo(x0+40,y-12);ctx.stroke();
+      ctx.fillStyle='#1d2530';ctx.font='9px sans-serif';ctx.fillText('кВт·ч',x0+9,y+4);
+    } else if(m.type=='rub'){
+      ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+12,y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x0+12,y);ctx.lineTo(x0+34,y-12);ctx.stroke();
+      ctx.beginPath();ctx.arc(x0+36,y,3,0,6.28);ctx.stroke();
+    } else if(m.type=='km'){
+      ctx.strokeRect(x0,y-14,40,28);
+      ctx.beginPath();ctx.moveTo(x0+12,y+8);ctx.lineTo(x0+28,y-8);ctx.stroke();
+    } else if(m.type=='uzo'||m.type=='avdt'){
+      ctx.strokeRect(x0,y-16,40,32);
+      ctx.strokeStyle=(m.type=='uzo'?'#2980b9':'#c0392b');
+      ctx.beginPath();ctx.arc(x0+20,y,7,0,6.28);ctx.stroke();
+      if(m.type=='avdt'){ctx.strokeStyle='#c0392b';ctx.strokeRect(x0+16,y-4,8,8)}
+    } else {
+      ctx.strokeRect(x0,y-14,40,28);
+      ctx.beginPath();ctx.moveTo(x0+14,y+7);ctx.lineTo(x0+26,y-7);ctx.stroke();
+    }
+    ctx.fillStyle='#334155';ctx.font='10px sans-serif';
+    ctx.fillText(shortName(m.name)+(P>1?' ('+P+'P)':'')+' · '+(m.price||0).toFixed(0)+' ₽',152,y+4);
+  });
+};
+/* --- 5. Очистка: монтаж + провода + корпус --- */
+$('clearMont').onclick=function(){
+  if(confirm('Очистить монтаж?')){
+    S.mods=[];S.wires=[];S.korpus=null;
+    $('korpusWrap').innerHTML='';
+    try{buildKom()}catch(e){}
+    drawMont();save();toast('Очищено: монтаж, провода и корпус');
+  }
+};
+/* --- 6. Печать ярлыков: каждая лента — своей страницей, с иконкой --- */
+function iconFor(s){
+  var E=[['свет','💡'],['розет','🔌'],['кухн','🍳'],['ванн','🚿'],['туал','🚽'],['стирал','🧺'],['кот','🔥'],['бойл','♨️'],['кондиц','❄️'],['спальн','🛏'],['детск','🧒'],['зал','🛋'],['холл','🚪'],['улиц','🌳'],['гараж','🚗'],['вход','🔑'],['заряд','🔋'],['резерв','⚡']];
+  var low=(s||'').toLowerCase();
+  for(var i=0;i<E.length;i++)if(low.indexOf(E[i][0])>=0)return E[i][1];
+  return '⚡';
+}
+window.printTmpl=function(t){
+  var all=[];S.labels.forEach(function(x){for(var i=0;i<x.n;i++)all.push(x.t)});
+  if(!all.length)all=['Свет'];
+  var pa=$('printArea');pa.style.display='block';pa.innerHTML='';
+  if(t.one){
+    all.forEach(function(s){
+      var pg=document.createElement('div');pg.className='tapepage';
+      pg.style.cssText='display:flex;align-items:center;justify-content:center;page-break-after:always;height:'+(t.h+12)+'mm';
+      var cell=document.createElement('div');cell.className='tapecell';
+      cell.style.cssText='width:'+t.w+'mm;height:'+(t.h+3)+'mm;display:flex;align-items:center;justify-content:center;gap:2mm;border:1px dashed #bbb;font-weight:700;white-space:nowrap;overflow:hidden';
+      var ic=document.createElement('span');ic.textContent=iconFor(s);
+      var tx=document.createElement('span');tx.textContent=s;
+      var MM=3.7795;var wpx=Math.max(60,t.w*MM*0.9);
+      var fs=Math.floor((wpx-16)/(Math.max(s.length,4)*0.62));
+      fs=Math.max(6,Math.min(t.font,fs));
+      tx.style.fontSize=fs+'px';ic.style.fontSize=(fs+2)+'px';
+      cell.appendChild(ic);cell.appendChild(tx);pg.appendChild(cell);pa.appendChild(pg);
+    });
+  } else {
+    var perRow=t.cols,rows=Math.ceil(all.length/perRow);
+    for(var r=0;r<Math.max(rows,t.rows);r++){
+      var rw=document.createElement('div');rw.style.cssText='display:flex;gap:2px;margin-bottom:2px';
+      for(var c2=0;c2<perRow;c2++){
+        var idx=r*perRow+c2;
+        var cell2=document.createElement('div');
+        cell2.style.cssText='width:'+t.w+'mm;height:'+t.h+'mm;border:1px dotted #aaa;display:flex;align-items:center;justify-content:center;gap:2px;text-align:center;padding:2px;overflow:hidden;font-weight:700';
+        if(idx<all.length){
+          var ic2=document.createElement('span');ic2.textContent=iconFor(all[idx]);
+          var tx2=document.createElement('span');tx2.textContent=all[idx];
+          ic2.style.fontSize=(t.font+2)+'px';tx2.style.fontSize=t.font+'pt';
+          cell2.appendChild(ic2);cell2.appendChild(tx2);
+        }
+        rw.appendChild(cell2);
+      }
+      pa.appendChild(rw);
+    }
+  }
+  window.print();
+  setTimeout(function(){pa.style.display='none';pa.innerHTML=''},300);
+};
+/* перезагрузка монтажа: устройства получают новое перетаскивание */
+try{drawMont()}catch(e){}
+</script>
+</body>
+</html>
